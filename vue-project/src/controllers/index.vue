@@ -45,16 +45,22 @@
         </el-radio-group>
       </div>
       <el-collapse accordion>
-        <el-collapse-item v-for="(detail,i) in searchData" :key="detail.order_id">
-          <template slot="title">
-            订单{{i+1}}
-          </template>
+        <el-collapse-item
+          v-for="(detail, i) in searchData"
+          :key="detail.order_id"
+        >
+          <template slot="title"> 订单{{ i + 1 }} </template>
           <div>
-            与现实生活一致：与现实生活的流程、逻辑保持一致，遵循用户习惯的语言和概念；
+            出发地：{{
+              detail.starting_lng | position(detail.starting_lat)
+            }}
           </div>
-          <div>
-            在界面中一致：所有的元素和结构需保持一致，比如：设计样式、图标和文本、元素的位置等。
-          </div>
+          <!-- <div>
+            目的地：{{ getPositionName(detail.dest_lng, detail.dest_lat) }}
+          </div> -->
+          <div>距离：{{ detail.start_dest_distance }} m</div>
+          <div>时长：{{ detail.normal_time }} min</div>
+          <div>出发时间：{{ detail.departure_time }}</div>
         </el-collapse-item>
       </el-collapse>
     </div>
@@ -89,6 +95,26 @@ export default {
     this.svg = d3.select("#my_svg").attr("width", width).attr("height", height);
     this.getMap();
     this.getData();
+  },
+  filters: {
+    position: async function (lng,lat) {
+      let api = new Promise((resolve) => {
+        AMap.service("AMap.Geocoder", function () {
+          let geocoder = new AMap.Geocoder({
+            city: "海南省",
+          });
+          geocoder.getAddress([lng, lat], function (status, result) {
+            let address = result.regeocode.formattedAddress;
+            name = address.split("海口市")[1].slice(3);
+            name = name.split("街道")[1] || name;
+            resolve(name);
+          });
+        });
+      })
+      let name = await api
+      console.log(name)
+      return name;
+    },
   },
   methods: {
     changeDate() {
@@ -152,28 +178,22 @@ export default {
     },
     //高德API由经纬度获取地名
     getPositionName(lng, lat) {
-      AMap.service("AMap.Geocoder", function () {
-        let geocoder = new AMap.Geocoder({
-          city: "海南省",
+      let name = "";
+      new Promise((resolve) => {
+        AMap.service("AMap.Geocoder", function () {
+          let geocoder = new AMap.Geocoder({
+            city: "海南省",
+          });
+          geocoder.getAddress([lng, lat], function (status, result) {
+            let address = result.regeocode.formattedAddress;
+            name = address.split("海口市")[1].slice(3);
+            name = name.split("街道")[1] || name;
+            resolve(name);
+          });
         });
-        geocoder.getAddress([lng, lat], function (status, result) {
-          // console.log(1)
-          // console.log(result)
-          // console.log(result.regeocode.addressComponent.street)
-          // let street = result.regeocode.addressComponent.street;
-          // let township = result.regeocode.addressComponent.township;
-          let address = result.regeocode.formattedAddress;
-          console.log(address.split("区")[1]);
-          let a = address.match(/街道/g);
-          let b = address.match(/路/g);
-          console.log(address.split("街道"));
-          console.log(address.split("路"));
-
-          if (status === "complete" && result.info === "OK") {
-            // result为对应的地理位置详细信息
-            return result;
-          }
-        });
+      }).then((res) => {
+        console.log(res);
+        return res;
       });
     },
     //获取地图json 渲染地图Path
@@ -290,6 +310,7 @@ export default {
         return d[1];
       }),
     getDest(paths) {
+      console.log(paths);
       for (let i = 0; i < paths.length; i++) {
         this.renderLine(
           projection([paths[i].starting_lng, paths[i].starting_lat]),
@@ -370,7 +391,7 @@ export default {
   align-items: center;
   justify-content: space-around;
 }
-.detail-box{
+.detail-box {
   margin: 20px;
   padding: 20px;
   height: 650px;
