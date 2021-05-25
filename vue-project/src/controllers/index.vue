@@ -36,6 +36,28 @@
       </div>
     </div>
     <svg id="my_svg"></svg>
+    <div class="detail-box">
+      <div class="box">
+        <div class="title">排序方式：</div>
+        <el-radio-group v-model="searchR" class="margin">
+          <el-radio :label="0">距离</el-radio>
+          <el-radio :label="0.001">时间</el-radio>
+        </el-radio-group>
+      </div>
+      <el-collapse accordion>
+        <el-collapse-item v-for="(detail,i) in searchData" :key="detail.order_id">
+          <template slot="title">
+            订单{{i+1}}
+          </template>
+          <div>
+            与现实生活一致：与现实生活的流程、逻辑保持一致，遵循用户习惯的语言和概念；
+          </div>
+          <div>
+            在界面中一致：所有的元素和结构需保持一致，比如：设计样式、图标和文本、元素的位置等。
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
   </div>
 </template>
 
@@ -59,6 +81,7 @@ export default {
       value: "2017-05-01",
       allData: [],
       data: [],
+      searchData: [],
       radio: "starting",
     };
   },
@@ -218,14 +241,24 @@ export default {
                 "r",
                 projection([_this.searchR, 0])[0] - projection([0, 0])[0]
               );
-            _this.getDest(
-              _this.interpolateAround(
-                _this.data,
-                d.starting_lng,
-                d.starting_lat
-              )
+            _this.searchData = _this.interpolateAround(
+              _this.data,
+              d.starting_lng,
+              d.starting_lat
             );
-            _this.getPositionName(d.starting_lng, d.starting_lat);
+            _this.getDest(_this.searchData);
+          })
+          .on("mouseover", function (d) {
+            d3.select(this)
+              .style("fill", "orange")
+              .style("fill-opacity", "0.5");
+          })
+          .on("mouseout", function (d) {
+            d3.select(this)
+              .transition()
+              .duration(250)
+              .style("fill", "red")
+              .style("fill-opacity", "0.1");
           });
       });
     },
@@ -299,7 +332,7 @@ export default {
       searchPath
         .append("path")
         .attr("id", "arrow")
-        .attr("fill", "#fff")
+        .attr("fill", "yellow")
         .attr("d", "M2,0L-2,2L-2,-2Z")
         .append("animateMotion")
         .attr("path", path.toString())
@@ -320,7 +353,7 @@ export default {
   width: 100vw;
   display: flex;
   align-items: center;
-  justify-content: left;
+  justify-content: space-between;
 }
 .control {
   margin: 20px;
@@ -337,6 +370,18 @@ export default {
   align-items: center;
   justify-content: space-around;
 }
+.detail-box{
+  margin: 20px;
+  padding: 20px;
+  height: 650px;
+  width: 300px;
+  box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+  border: 1px solid #ebeef5;
+  background-color: #fff;
+  color: #303133;
+  border-radius: 4px;
+  overflow-y: scroll;
+}
 .box {
   width: 250px;
 }
@@ -352,7 +397,7 @@ export default {
 .margin {
   margin: 10px;
 }
-.radioLine{
+.radioLine {
   display: block;
   margin: 5px 0;
 }
