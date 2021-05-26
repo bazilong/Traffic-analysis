@@ -14,6 +14,10 @@
         </el-date-picker>
       </div>
       <div class="box">
+        <div class="title">天气：</div>
+        <div class="button">{{weather}}</div>
+      </div>
+      <div class="box">
         <div class="title">控制：</div>
         <el-button class="button" @click="play">播放</el-button>
         <el-button class="button" @click="stop">暂停</el-button>
@@ -39,25 +43,32 @@
     <div class="detail-box">
       <div class="box">
         <div class="title">排序方式：</div>
-        <el-radio-group v-model="searchR" class="margin">
-          <el-radio :label="0">距离</el-radio>
-          <el-radio :label="0.001">时间</el-radio>
+        <el-radio-group
+          v-model="sortType"
+          class="margin"
+          @change="changeSortType"
+        >
+          <el-radio label="distance">距离</el-radio>
+          <el-radio label="time">时间</el-radio>
         </el-radio-group>
       </div>
       <el-collapse accordion>
         <el-collapse-item
           v-for="(detail, i) in searchData"
           :key="detail.order_id"
+          @click.native="confirmDetail(i)"
         >
-          <template slot="title"> 订单{{ i + 1 }} </template>
-          <div>
-            出发地：{{
-              detail.starting_lng | position(detail.starting_lat)
-            }}
-          </div>
-          <!-- <div>
-            目的地：{{ getPositionName(detail.dest_lng, detail.dest_lat) }}
-          </div> -->
+          <template slot="title">
+            订单{{ i + 1 }}
+            <span v-if="sortType === 'distance'" class="tip"
+              >{{ detail.start_dest_distance }} m</span
+            >
+            <span v-if="sortType === 'time'" class="tip">{{
+              detail.departure_time
+            }}</span>
+          </template>
+          <div>出发地：{{ detail.starting_name }}</div>
+          <div>目的地：{{ detail.dest_name }}</div>
           <div>距离：{{ detail.start_dest_distance }} m</div>
           <div>时长：{{ detail.normal_time }} min</div>
           <div>出发时间：{{ detail.departure_time }}</div>
@@ -75,8 +86,8 @@ let timeOut = null;
 let projection = d3
   .geoMercator()
   .center([110, 20])
-  .scale(60000)
-  .translate([-width * 0.11, height * 0.225]);
+  .scale(70000)
+  .translate([-width * 0.22, height * 0.225]);
 
 export default {
   data() {
@@ -89,6 +100,8 @@ export default {
       data: [],
       searchData: [],
       radio: "starting",
+      sortType: "",
+      weather:""
     };
   },
   mounted() {
@@ -96,30 +109,44 @@ export default {
     this.getMap();
     this.getData();
   },
-  filters: {
-    position: async function (lng,lat) {
-      let api = new Promise((resolve) => {
-        AMap.service("AMap.Geocoder", function () {
-          let geocoder = new AMap.Geocoder({
-            city: "海南省",
-          });
-          geocoder.getAddress([lng, lat], function (status, result) {
-            let address = result.regeocode.formattedAddress;
-            name = address.split("海口市")[1].slice(3);
-            name = name.split("街道")[1] || name;
-            resolve(name);
-          });
-        });
-      })
-      let name = await api
-      console.log(name)
-      return name;
-    },
-  },
   methods: {
     changeDate() {
       let date = this.value.split("-");
       this.updateData(date[0], date[1], date[2]);
+    },
+    changeSortType() {
+      if (this.sortType === "distance") {
+        this.sortByDistance();
+      } else {
+        this.sortByTime();
+      }
+    },
+    sortByDistance() {
+      this.searchData.sort(function (a, b) {
+        return (
+          parseInt(a.start_dest_distance) - parseInt(b.start_dest_distance)
+        );
+      });
+    },
+    sortByTime() {
+      this.searchData.sort(function (a, b) {
+        return new Date(a.departure_time) - new Date(b.departure_time);
+      });
+    },
+    confirmDetail(i) {
+      console.log(i);
+      d3.selectAll(".detailDest").remove();
+      this.svg
+        .append("g")
+        .data([this.searchData[i]])
+        .attr("transform", function (d) {
+          return "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
+        })
+        .attr("class", "search detailDest")
+        .append("circle")
+        .attr("r", 5) //半径
+        .style("fill", "yellow")
+        .style("fill-opacity", "0.5");
     },
     //播放，注册定时器每隔n秒更新一次日期并更新数据
     play() {
@@ -177,23 +204,18 @@ export default {
       });
     },
     //高德API由经纬度获取地名
-    getPositionName(lng, lat) {
-      let name = "";
-      new Promise((resolve) => {
-        AMap.service("AMap.Geocoder", function () {
-          let geocoder = new AMap.Geocoder({
-            city: "海南省",
-          });
-          geocoder.getAddress([lng, lat], function (status, result) {
-            let address = result.regeocode.formattedAddress;
-            name = address.split("海口市")[1].slice(3);
-            name = name.split("街道")[1] || name;
-            resolve(name);
-          });
+    getPositionName(type, i, lng, lat) {
+      let _this = this;
+      AMap.service("AMap.Geocoder", function () {
+        let geocoder = new AMap.Geocoder({
+          city: "海南省",
         });
-      }).then((res) => {
-        console.log(res);
-        return res;
+        geocoder.getAddress([lng, lat], function (status, result) {
+          let address = result.regeocode.formattedAddress;
+          address = address.split("海口市")[1].slice(3);
+          address = address.split("街道")[1] || address;
+          _this.$set(_this.searchData[i], type + "_name", address);
+        });
       });
     },
     //获取地图json 渲染地图Path
@@ -216,9 +238,17 @@ export default {
           });
       });
     },
+    getWeather(){
+      let _this = this
+      this.$http.get(`/api/weather2/query?appkey=c73e1fdad59c6dd3&city=%E6%B5%B7%E5%8F%A3&date=${this.value}`).then(function(res){
+        console.log(res.data.result.weather)
+        _this.weather = res.data.result.weather
+      })
+    },
     //获取全部订单数据，并首次渲染位点
     getData() {
       let _this = this;
+      this.getWeather()
       d3.csv("static/fname_min.csv", function (csvdata) {
         return csvdata;
       }).then(function (res) {
@@ -240,6 +270,7 @@ export default {
           .on("click", function (d) {
             //绑定点击事件 搜索模糊范围内的所有订单数据
             d3.selectAll(".search").remove();
+            _this.sortType = "";
             if (_this.radio !== "starting") return;
             //模糊圆
             let searchArea = _this.svg
@@ -277,7 +308,9 @@ export default {
             d3.select(this)
               .transition()
               .duration(250)
-              .style("fill", "red")
+              .style("fill", function (d) {
+                return _this.radio === "starting" ? "red" : "green";
+              })
               .style("fill-opacity", "0.1");
           });
       });
@@ -286,6 +319,8 @@ export default {
     updateData(year, month, day) {
       let _this = this;
       this.data = this.interpolateData(this.allData, year, month, day);
+      //this.getWeather()
+      this.searchData = [];
       d3.selectAll(".search").remove();
       this.svg
         .selectAll("circle")
@@ -310,8 +345,15 @@ export default {
         return d[1];
       }),
     getDest(paths) {
-      console.log(paths);
+      let _this = this;
       for (let i = 0; i < paths.length; i++) {
+        this.getPositionName(
+          "starting",
+          i,
+          paths[i].starting_lng,
+          paths[i].starting_lat
+        );
+        this.getPositionName("dest", i, paths[i].dest_lng, paths[i].dest_lat);
         this.renderLine(
           projection([paths[i].starting_lng, paths[i].starting_lat]),
           projection([paths[i].dest_lng, paths[i].dest_lat]),
@@ -320,9 +362,7 @@ export default {
       }
     },
     //绘制迁徙线
-    renderLine(startA, endA, index) {
-      console.log(startA);
-      console.log(endA);
+    renderLine(startA, endA) {
       //获取贝塞尔曲线控制点
       function computeControlPoint(ps, pe, arc = 0.5) {
         const deltaX = pe[0] - ps[0];
@@ -420,6 +460,11 @@ export default {
 }
 .radioLine {
   display: block;
-  margin: 5px 0;
+  margin: 10px 0;
+}
+.tip {
+  font-size: 10px;
+  color: gray;
+  margin-left: 20px;
 }
 </style>

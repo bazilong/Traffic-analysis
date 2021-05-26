@@ -8,13 +8,14 @@ import router from './router'
 import App from './App.vue'
 import ElementUI from 'element-ui'
 import AMap from 'vue-amap';
+import axios from 'axios'
 
-Vue.use(VueRouter)
 Vue.use(AMap);
 // 初始化vue-amap
 AMap.initAMapApiLoader({
     key: 'f7d99ae14ec326012331b9b08c83a72a'
 });
+Vue.prototype.$http = axios
 
 Vue.use(ElementUI, { size: 'small', zIndex: 3000 })
 
