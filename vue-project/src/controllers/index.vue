@@ -15,13 +15,13 @@
       </div>
       <div class="box">
         <div class="title">天气：</div>
-        <div class="button">{{weather}}</div>
+        <div class="button">{{ weather }}</div>
       </div>
       <div class="box">
         <div class="title">控制：</div>
         <el-button class="button" @click="play">播放</el-button>
         <el-button class="button" @click="stop">暂停</el-button>
-        <el-button class="button">重新开始</el-button>
+        <el-button class="button" @click="reStart">重新开始</el-button>
       </div>
       <div class="box">
         <div class="title">切换：</div>
@@ -56,7 +56,7 @@
         <el-collapse-item
           v-for="(detail, i) in searchData"
           :key="detail.order_id"
-          @click.native="confirmDetail(i)"
+          @click.native="confirmDetail(detail)"
         >
           <template slot="title">
             订单{{ i + 1 }}
@@ -101,7 +101,7 @@ export default {
       searchData: [],
       radio: "starting",
       sortType: "",
-      weather:""
+      weather: "",
     };
   },
   mounted() {
@@ -133,12 +133,12 @@ export default {
         return new Date(a.departure_time) - new Date(b.departure_time);
       });
     },
-    confirmDetail(i) {
-      console.log(i);
-      d3.selectAll(".detailDest").remove();
+    confirmDetail(e) {
+      console.log(e);
+      d3.selectAll(".detailDest").remove()
       this.svg
         .append("g")
-        .data([this.searchData[i]])
+        .data([e])
         .attr("transform", function (d) {
           return "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
         })
@@ -238,17 +238,21 @@ export default {
           });
       });
     },
-    getWeather(){
-      let _this = this
-      this.$http.get(`/api/weather2/query?appkey=c73e1fdad59c6dd3&city=%E6%B5%B7%E5%8F%A3&date=${this.value}`).then(function(res){
-        console.log(res.data.result.weather)
-        _this.weather = res.data.result.weather
-      })
+    getWeather() {
+      let _this = this;
+      this.$http
+        .get(
+          `/api/weather2/query?appkey=c73e1fdad59c6dd3&city=%E6%B5%B7%E5%8F%A3&date=${this.value}`
+        )
+        .then(function (res) {
+          console.log(res.data.result.weather);
+          _this.weather = res.data.result.weather;
+        });
     },
     //获取全部订单数据，并首次渲染位点
     getData() {
       let _this = this;
-      this.getWeather()
+      this.getWeather();
       d3.csv("static/fname_min.csv", function (csvdata) {
         return csvdata;
       }).then(function (res) {
@@ -355,6 +359,7 @@ export default {
         );
         this.getPositionName("dest", i, paths[i].dest_lng, paths[i].dest_lat);
         this.renderLine(
+          paths[i].order_id,
           projection([paths[i].starting_lng, paths[i].starting_lat]),
           projection([paths[i].dest_lng, paths[i].dest_lat]),
           i
@@ -362,7 +367,7 @@ export default {
       }
     },
     //绘制迁徙线
-    renderLine(startA, endA) {
+    renderLine(id, startA, endA) {
       //获取贝塞尔曲线控制点
       function computeControlPoint(ps, pe, arc = 0.5) {
         const deltaX = pe[0] - ps[0];
@@ -383,6 +388,7 @@ export default {
       let searchPath = this.svg.append("g").attr("class", "search");
       searchPath
         .append("path")
+        .attr("id", "path_"+id)
         .attr("d", path.toString())
         .attr("fill", "#fff")
         .attr("fill-opacity", "0")
