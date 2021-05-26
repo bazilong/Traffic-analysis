@@ -153,7 +153,8 @@ export default {
         .append("circle")
         .attr("r", 5) //半径
         .style("fill", "yellow")
-        .style("fill-opacity", "0.5");
+        .style("fill-opacity", "0.5")
+        .style('pointer-events', 'none')
     },
     //播放，注册定时器每隔n秒更新一次日期并更新数据
     play() {
@@ -448,7 +449,8 @@ export default {
         .attr("fill", "#fff")
         .attr("fill-opacity", "0")
         .style("stroke", "#fff")
-        .style("stroke-width", lineWidth);
+        .style("stroke-width", lineWidth)
+        .style('pointer-events', 'none')
 
       //箭头
       searchPath
@@ -461,7 +463,8 @@ export default {
         .attr("begin", "0ms")
         .attr("dur", this.durationtime + "ms")
         .attr("fill", "freeze")
-        .attr("rotate", "auto");
+        .attr("rotate", "auto")
+        .style('pointer-events', 'none')
     },
   },
 };
