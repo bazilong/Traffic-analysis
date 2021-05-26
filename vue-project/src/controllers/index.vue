@@ -7,7 +7,7 @@
           v-model="value"
           type="date"
           class="margin"
-          @change="changeDate"
+          @change="updateByDate"
           value-format="yyyy-MM-dd"
           placeholder="选择日期"
         >
@@ -25,7 +25,7 @@
       </div>
       <div class="box">
         <div class="title">切换：</div>
-        <el-radio-group v-model="radio" class="margin" @change="changeDate">
+        <el-radio-group v-model="radio" class="margin" @change="changeRadio">
           <el-radio-button label="starting">出发地</el-radio-button>
           <el-radio-button label="dest">目的地</el-radio-button>
         </el-radio-group>
@@ -33,8 +33,8 @@
       <div class="box">
         <div class="title">搜索范围：</div>
         <el-radio-group v-model="searchR" class="margin">
-          <el-radio :label="0" class="radioLine">精确</el-radio>
           <el-radio :label="0.001" class="radioLine">100m</el-radio>
+          <el-radio :label="0.004" class="radioLine">400m</el-radio>
           <el-radio :label="0.01" class="radioLine">1000m</el-radio>
         </el-radio-group>
       </div>
@@ -99,9 +99,11 @@ export default {
       allData: [],
       data: [],
       searchData: [],
+      firstData: [],
       radio: "starting",
       sortType: "",
       weather: "",
+      startingValue: "",
     };
   },
   mounted() {
@@ -110,15 +112,20 @@ export default {
     this.getData();
   },
   methods: {
-    changeDate() {
-      let date = this.value.split("-");
-      this.updateData(date[0], date[1], date[2]);
-    },
     changeSortType() {
       if (this.sortType === "distance") {
         this.sortByDistance();
       } else {
         this.sortByTime();
+      }
+    },
+    changeRadio() {
+      if (this.radio === "starting") {
+        d3.selectAll(".searchdest").remove();
+        this.searchData = this.firstData;
+        this.updateData();
+      } else {
+        this.updateData();
       }
     },
     sortByDistance() {
@@ -135,7 +142,7 @@ export default {
     },
     confirmDetail(e) {
       console.log(e);
-      d3.selectAll(".detailDest").remove()
+      d3.selectAll(".detailDest").remove();
       this.svg
         .append("g")
         .data([e])
@@ -163,7 +170,7 @@ export default {
           date[1] = +date[1] + 1 + "";
         }
         _this.value = date.join("-");
-        _this.updateData(date[0], date[1], date[2]);
+        _this.updateByDate();
         if (date[1] === "10" && date[1] === "31") {
           clearTimeout(timeOut);
         }
@@ -177,7 +184,7 @@ export default {
     reStart() {
       clearTimeout(timeOut);
       this.value = "2017-05-01";
-      this.updateData("2017", "05", "01");
+      this.updateByDate();
     },
     //日期过滤器
     interpolateData(nations, year, month, day) {
@@ -193,13 +200,25 @@ export default {
         );
       });
     },
-    //经纬度模糊过滤器
+    //出发地经纬度模糊过滤器
     interpolateAround(nations, lng, lat) {
       let _this = this;
       return nations.filter(function (a) {
         return (
           Math.abs(a.starting_lat - lat) <= _this.searchR &&
           Math.abs(a.starting_lng - lng) <= _this.searchR
+        );
+      });
+    },
+    //出发地目的地经纬度模糊过滤器
+    interpolateDoubleAround(nations, lng, lat, d_lng, d_lat) {
+      let _this = this;
+      return nations.filter(function (a) {
+        return (
+          Math.abs(a.starting_lat - lat) <= _this.searchR &&
+          Math.abs(a.starting_lng - lng) <= _this.searchR &&
+          Math.abs(a.dest_lat - d_lat) <= _this.searchR &&
+          Math.abs(a.dest_lng - d_lng) <= _this.searchR
         );
       });
     },
@@ -215,6 +234,7 @@ export default {
           address = address.split("海口市")[1].slice(3);
           address = address.split("街道")[1] || address;
           _this.$set(_this.searchData[i], type + "_name", address);
+          _this.firstData = _this.searchData;
         });
       });
     },
@@ -252,7 +272,7 @@ export default {
     //获取全部订单数据，并首次渲染位点
     getData() {
       let _this = this;
-      this.getWeather();
+      //this.getWeather();
       d3.csv("static/fname_min.csv", function (csvdata) {
         return csvdata;
       }).then(function (res) {
@@ -263,45 +283,29 @@ export default {
           .data(_this.data)
           .enter()
           .append("circle")
+          .attr("class", "dataCircle")
           .attr("r", 5) //半径
-          .style("fill", "red")
+          .style("fill", function (d) {
+            return _this.radio === "starting" ? "red" : "green";
+          })
           .style("fill-opacity", "0.1")
           .attr("transform", function (d) {
-            return (
-              "translate(" + projection([d.starting_lng, d.starting_lat]) + ")"
-            );
-          })
-          .on("click", function (d) {
-            //绑定点击事件 搜索模糊范围内的所有订单数据
-            d3.selectAll(".search").remove();
-            _this.sortType = "";
-            if (_this.radio !== "starting") return;
-            //模糊圆
-            let searchArea = _this.svg
-              .append("g")
-              .attr("transform", function (a) {
-                return (
-                  "translate(" +
+            return _this.radio === "starting"
+              ? "translate(" +
                   projection([d.starting_lng, d.starting_lat]) +
                   ")"
-                );
-              })
-              .attr("class", "search");
-            searchArea
-              .append("circle")
-              .style("fill", "none")
-              .style("stroke", "#0000FF")
-              .style("stroke-width", 1)
-              .attr(
-                "r",
-                projection([_this.searchR, 0])[0] - projection([0, 0])[0]
-              );
-            _this.searchData = _this.interpolateAround(
-              _this.data,
-              d.starting_lng,
-              d.starting_lat
-            );
-            _this.getDest(_this.searchData);
+              : "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
+          })
+          .on("click", function (d) {
+            _this.sortType = "";
+            if (_this.radio === "starting") {
+              _this.firstValue = d;
+              d3.selectAll(".searchstarting").remove();
+              _this.firstAction(d);
+            } else {
+              d3.selectAll(".searchdest").remove();
+              _this.secondAction(d);
+            }
           })
           .on("mouseover", function (d) {
             d3.select(this)
@@ -319,16 +323,62 @@ export default {
           });
       });
     },
-    //根据日期更新数据
-    updateData(year, month, day) {
-      let _this = this;
-      this.data = this.interpolateData(this.allData, year, month, day);
+    firstAction(d) {
+      let searchArea = this.svg
+        .append("g")
+        .attr("transform", function (a) {
+          return (
+            "translate(" + projection([d.starting_lng, d.starting_lat]) + ")"
+          );
+        })
+        .attr("class", "search searchstarting");
+      searchArea
+        .append("circle")
+        .style("fill", "none")
+        .style("stroke", "#0000FF")
+        .style("stroke-width", 1)
+        .attr("r", projection([this.searchR, 0])[0] - projection([0, 0])[0]);
+      this.searchData = this.interpolateAround(
+        this.data,
+        d.starting_lng,
+        d.starting_lat
+      );
+      this.getDest(this.searchData);
+    },
+    secondAction(d) {
+      let searchArea = this.svg
+        .append("g")
+        .attr("transform", function (a) {
+          return "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
+        })
+        .attr("class", "search searchdest");
+      searchArea
+        .append("circle")
+        .style("fill", "none")
+        .style("stroke", "#0000FF")
+        .style("stroke-width", 1)
+        .attr("r", projection([this.searchR, 0])[0] - projection([0, 0])[0]);
+      this.searchData = this.interpolateDoubleAround(
+        this.data,
+        this.firstValue.starting_lng,
+        this.firstValue.starting_lat,
+        d.dest_lng,
+        d.dest_lat
+      );
+    },
+    updateByDate() {
+      let date = this.value.split("-");
+      this.data = this.interpolateData(this.allData, date[0], date[1], date[2]);
       //this.getWeather()
-      this.searchData = [];
-      d3.selectAll(".search").remove();
-      this.svg
-        .selectAll("circle")
-        .data(this.data)
+      this.updateData();
+    },
+    //根据日期更新数据
+    updateData() {
+      let _this = this;
+      let updateCircle = this.svg.selectAll(".dataCircle").data(this.data);
+      let enterCircle = updateCircle.enter();
+      let exitCircle = updateCircle.exit();
+      updateCircle
         .attr("r", 5) //半径
         .style("fill", function (d) {
           return _this.radio === "starting" ? "red" : "green";
@@ -337,8 +387,12 @@ export default {
         .attr("transform", function (d) {
           return _this.radio === "starting"
             ? "translate(" + projection([d.starting_lng, d.starting_lat]) + ")"
-            : "translate(" + projection([d.dest_lng, d.starting_lat]) + ")";
+            : "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
         });
+
+      enterCircle;
+
+      exitCircle.remove();
     },
     lineGenerator: d3
       .line()
@@ -348,7 +402,7 @@ export default {
       .y(function (d) {
         return d[1];
       }),
-    getDest(paths) {
+    getDest(paths, t) {
       let _this = this;
       for (let i = 0; i < paths.length; i++) {
         this.getPositionName(
@@ -359,7 +413,7 @@ export default {
         );
         this.getPositionName("dest", i, paths[i].dest_lng, paths[i].dest_lat);
         this.renderLine(
-          paths[i].order_id,
+          t,
           projection([paths[i].starting_lng, paths[i].starting_lat]),
           projection([paths[i].dest_lng, paths[i].dest_lat]),
           i
@@ -385,10 +439,11 @@ export default {
       let path = d3.path();
       path.moveTo(startA[0], startA[1]);
       path.quadraticCurveTo(middleA[0], middleA[1], endA[0], endA[1]);
-      let searchPath = this.svg.append("g").attr("class", "search");
+      let searchPath = this.svg
+        .append("g")
+        .attr("class", "search search" + this.radio);
       searchPath
         .append("path")
-        .attr("id", "path_"+id)
         .attr("d", path.toString())
         .attr("fill", "#fff")
         .attr("fill-opacity", "0")
