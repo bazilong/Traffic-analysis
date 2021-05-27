@@ -1,5 +1,6 @@
 <template>
   <div class="main">
+    <img src="static/haikou.png" class="bg"/>
     <div class="control">
       <div class="box">
         <div class="title">日期：</div>
@@ -39,7 +40,7 @@
         </el-radio-group>
       </div>
     </div>
-    <svg id="my_svg"></svg>
+    <svg id="my_svg" style="z-index:666"></svg>
     <div class="detail-box">
       <div class="box">
         <div class="title">排序方式：</div>
@@ -143,6 +144,7 @@ export default {
     confirmDetail(e) {
       console.log(e);
       d3.selectAll(".detailDest").remove();
+      d3.selectAll(".search#EDCD9C").remove();
       this.svg
         .append("g")
         .data([e])
@@ -152,9 +154,14 @@ export default {
         .attr("class", "search detailDest")
         .append("circle")
         .attr("r", 5) //半径
-        .style("fill", "yellow")
+        .style("fill", "#EDCD9C")
         .style("fill-opacity", "0.5")
         .style('pointer-events', 'none')
+      this.renderLine(
+          projection([e.starting_lng, e.starting_lat]),
+          projection([e.dest_lng, e.dest_lat]),
+          "#EDCD9C"
+      );
     },
     //播放，注册定时器每隔n秒更新一次日期并更新数据
     play() {
@@ -251,6 +258,7 @@ export default {
           .enter()
           .append("path")
           .attr("fill", "lightgray")
+          .style("fill-opacity", "0.8")
           .attr("stroke", "#aaa") //svg边线属性定义，这里是颜色
           .attr("d", path)
           .append("title")
@@ -403,7 +411,7 @@ export default {
       .y(function (d) {
         return d[1];
       }),
-    getDest(paths, t) {
+    getDest(paths) {
       let _this = this;
       for (let i = 0; i < paths.length; i++) {
         this.getPositionName(
@@ -414,15 +422,13 @@ export default {
         );
         this.getPositionName("dest", i, paths[i].dest_lng, paths[i].dest_lat);
         this.renderLine(
-          t,
           projection([paths[i].starting_lng, paths[i].starting_lat]),
-          projection([paths[i].dest_lng, paths[i].dest_lat]),
-          i
+          projection([paths[i].dest_lng, paths[i].dest_lat])
         );
       }
     },
     //绘制迁徙线
-    renderLine(id, startA, endA) {
+    renderLine(startA, endA ,color="#fff") {
       //获取贝塞尔曲线控制点
       function computeControlPoint(ps, pe, arc = 0.5) {
         const deltaX = pe[0] - ps[0];
@@ -442,13 +448,15 @@ export default {
       path.quadraticCurveTo(middleA[0], middleA[1], endA[0], endA[1]);
       let searchPath = this.svg
         .append("g")
-        .attr("class", "search search" + this.radio);
+        .attr("class", function(d){
+          return "search" + (color!="#fff" ? (" search"+color) : "")
+        })
       searchPath
         .append("path")
         .attr("d", path.toString())
-        .attr("fill", "#fff")
+        .attr("fill", color)
         .attr("fill-opacity", "0")
-        .style("stroke", "#fff")
+        .style("stroke", color)
         .style("stroke-width", lineWidth)
         .style('pointer-events', 'none')
 
@@ -476,11 +484,21 @@ export default {
 }
 .main {
   width: 100vw;
+  height:100vh;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  overflow:hidden;
+  position:relative; 
+}
+.bg{
+  position: absolute;
+  width: 2500px;
+  left: -550px;
+  top: -235px;
 }
 .control {
+  z-index:666;
   margin: 20px;
   padding: 20px;
   height: 650px;
@@ -496,6 +514,7 @@ export default {
   justify-content: space-around;
 }
 .detail-box {
+  z-index:666;
   margin: 20px;
   padding: 20px;
   height: 650px;
