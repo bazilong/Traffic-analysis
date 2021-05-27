@@ -1,6 +1,6 @@
 <template>
   <div class="main">
-    <img src="static/haikou.png" class="bg"/>
+    <img src="static/haikou.png" class="bg" />
     <div class="control">
       <div class="box">
         <div class="title">日期：</div>
@@ -11,12 +11,18 @@
           @change="updateByDate"
           value-format="yyyy-MM-dd"
           placeholder="选择日期"
-        >
-        </el-date-picker>
-      </div>
-      <div class="box">
-        <div class="title">天气：</div>
-        <div class="button">{{ weather }}</div>
+        />
+        <div style="font-size: 10px; display: flex; justify-content: center">
+          至
+        </div>
+        <el-date-picker
+          v-model="value2"
+          type="date"
+          class="margin"
+          @change="updateByDateRange"
+          value-format="yyyy-MM-dd"
+          placeholder="选择日期"
+        />
       </div>
       <div class="box">
         <div class="title">控制：</div>
@@ -40,7 +46,7 @@
         </el-radio-group>
       </div>
     </div>
-    <svg id="my_svg" style="z-index:666"></svg>
+    <svg id="my_svg" style="z-index: 666"></svg>
     <div class="detail-box">
       <div class="box">
         <div class="title">排序方式：</div>
@@ -51,9 +57,10 @@
         >
           <el-radio label="distance">距离</el-radio>
           <el-radio label="time">时间</el-radio>
+          <!-- <el-radio label="min">时长</el-radio> -->
         </el-radio-group>
       </div>
-      <el-collapse accordion>
+      <el-collapse class="scroll_box" accordion>
         <el-collapse-item
           v-for="(detail, i) in searchData"
           :key="detail.order_id"
@@ -61,12 +68,15 @@
         >
           <template slot="title">
             订单{{ i + 1 }}
-            <span v-if="sortType === 'distance'" class="tip"
-              >{{ detail.start_dest_distance }} m</span
-            >
+            <span v-if="sortType === 'distance'" class="tip">{{ 
+              detail.start_dest_distance 
+            }} m</span>
             <span v-if="sortType === 'time'" class="tip">{{
               detail.departure_time
             }}</span>
+            <!-- <span v-if="sortType === 'min'" class="tip">{{
+              detail.normal_time
+            }} min</span> -->
           </template>
           <div>出发地：{{ detail.starting_name }}</div>
           <div>目的地：{{ detail.dest_name }}</div>
@@ -75,6 +85,12 @@
           <div>出发时间：{{ detail.departure_time }}</div>
         </el-collapse-item>
       </el-collapse>
+      <svg
+        id="rect_svg"
+        width="300"
+        height="240"
+        style="margin-top: 20px"
+      ></svg>
     </div>
   </div>
 </template>
@@ -104,7 +120,11 @@ export default {
       radio: "starting",
       sortType: "",
       weather: "",
-      startingValue: "",
+      startingValue: {},
+      destValue: {},
+      value2: "2017-05-01",
+      allWeather: [],
+      type: [],
     };
   },
   mounted() {
@@ -113,16 +133,27 @@ export default {
     this.getData();
   },
   methods: {
+    updateByDateRange() {
+      if (new Date(this.value2) < new Date(this.value)) {
+        this.value2 = this.value;
+      }
+      this.updateByDate();
+    },
     changeSortType() {
       if (this.sortType === "distance") {
         this.sortByDistance();
-      } else {
+      } else if (this.sortType === "time") {
         this.sortByTime();
       }
+      // } else {
+      //   this.sortByMin();
+      // }
     },
     changeRadio() {
+      d3.selectAll(".search694d9f").remove();
       if (this.radio === "starting") {
         d3.selectAll(".searchdest").remove();
+        d3.selectAll(".detailDest").remove();
         this.searchData = this.firstData;
         this.updateData();
       } else {
@@ -141,10 +172,17 @@ export default {
         return new Date(a.departure_time) - new Date(b.departure_time);
       });
     },
+    // sortByMin() {
+    //   console.log(this.searchData)
+    //   this.searchData.sort(function (a, b) {
+    //     let s = a.normal_time == "NULL" ? "999" : a.normal_time
+    //     return parseInt(s) - parseInt(b.normal_time);
+    //   });
+    // },
     confirmDetail(e) {
       console.log(e);
       d3.selectAll(".detailDest").remove();
-      d3.selectAll(".search#EDCD9C").remove();
+      d3.selectAll(".search694d9f").remove();
       this.svg
         .append("g")
         .data([e])
@@ -154,13 +192,13 @@ export default {
         .attr("class", "search detailDest")
         .append("circle")
         .attr("r", 5) //半径
-        .style("fill", "#EDCD9C")
+        .style("fill", "#694d9f")
         .style("fill-opacity", "0.5")
-        .style('pointer-events', 'none')
+        .style("pointer-events", "none");
       this.renderLine(
-          projection([e.starting_lng, e.starting_lat]),
-          projection([e.dest_lng, e.dest_lat]),
-          "#EDCD9C"
+        projection([e.starting_lng, e.starting_lat]),
+        projection([e.dest_lng, e.dest_lat]),
+        "#694d9f"
       );
     },
     //播放，注册定时器每隔n秒更新一次日期并更新数据
@@ -178,6 +216,7 @@ export default {
           date[1] = +date[1] + 1 + "";
         }
         _this.value = date.join("-");
+        _this.value2 = _this.value;
         _this.updateByDate();
         if (date[1] === "10" && date[1] === "31") {
           clearTimeout(timeOut);
@@ -192,20 +231,21 @@ export default {
     reStart() {
       clearTimeout(timeOut);
       this.value = "2017-05-01";
+      this.value2 = "2017-05-01";
       this.updateByDate();
     },
     //日期过滤器
-    interpolateData(nations, year, month, day) {
-      //去前导零
-      function deleteFront0(a) {
-        return a.replace(/\b(0+)/gi, "");
-      }
+    interpolateData(nations, min, max) {
       return nations.filter(function (a) {
-        return (
-          a.year == year &&
-          deleteFront0(a.month) == deleteFront0(month) &&
-          deleteFront0(a.day) == deleteFront0(day)
-        );
+        let time = new Date(a.year + "-" + a.month + "-" + a.day);
+        return time >= new Date(min) && time <= new Date(max);
+      });
+    },
+    //天气过滤器
+    interpolateWeather(nations, weather) {
+      let _this = this
+      return nations.filter(function (a) {
+        return _this.allWeather[a.year + "-" + a.month + "-" + a.day] == weather && a.normal_time != "NULL";
       });
     },
     //出发地经纬度模糊过滤器
@@ -269,24 +309,23 @@ export default {
     },
     getWeather() {
       let _this = this;
-      this.$http
-        .get(
-          `/api/weather2/query?appkey=c73e1fdad59c6dd3&city=%E6%B5%B7%E5%8F%A3&date=${this.value}`
-        )
-        .then(function (res) {
-          console.log(res.data.result.weather);
-          _this.weather = res.data.result.weather;
-        });
+      d3.json("static/wendu.json").then(function (res) {
+        _this.allWeather = res.weather;
+        console.log(res);
+      });
     },
     //获取全部订单数据，并首次渲染位点
     getData() {
       let _this = this;
-      //this.getWeather();
       d3.csv("static/fname_min.csv", function (csvdata) {
         return csvdata;
       }).then(function (res) {
         _this.allData = res;
-        _this.data = _this.interpolateData(_this.allData, "2017", "05", "01");
+        _this.data = _this.interpolateData(
+          _this.allData,
+          "2017-05-01",
+          "2017-05-01"
+        );
         _this.svg
           .selectAll("circle")
           .data(_this.data)
@@ -308,11 +347,8 @@ export default {
           .on("click", function (d) {
             _this.sortType = "";
             if (_this.radio === "starting") {
-              _this.firstValue = d;
-              d3.selectAll(".searchstarting").remove();
               _this.firstAction(d);
             } else {
-              d3.selectAll(".searchdest").remove();
               _this.secondAction(d);
             }
           })
@@ -331,8 +367,12 @@ export default {
               .style("fill-opacity", "0.1");
           });
       });
+      this.getWeather();
     },
     firstAction(d) {
+      this.startingValue = d;
+      this.destValue = {};
+      d3.selectAll(".searchstarting").remove();
       let searchArea = this.svg
         .append("g")
         .attr("transform", function (a) {
@@ -355,6 +395,9 @@ export default {
       this.getDest(this.searchData);
     },
     secondAction(d) {
+      this.destValue = d;
+      d3.selectAll(".detailDest").remove();
+      d3.selectAll(".searchdest").remove();
       let searchArea = this.svg
         .append("g")
         .attr("transform", function (a) {
@@ -369,17 +412,26 @@ export default {
         .attr("r", projection([this.searchR, 0])[0] - projection([0, 0])[0]);
       this.searchData = this.interpolateDoubleAround(
         this.data,
-        this.firstValue.starting_lng,
-        this.firstValue.starting_lat,
+        this.startingValue.starting_lng,
+        this.startingValue.starting_lat,
         d.dest_lng,
         d.dest_lat
       );
+      this.setWeather();
     },
     updateByDate() {
-      let date = this.value.split("-");
-      this.data = this.interpolateData(this.allData, date[0], date[1], date[2]);
+      if (new Date(this.value2) < new Date(this.value)) {
+        this.value2 = this.value;
+      }
+      this.data = this.interpolateData(this.allData, this.value, this.value2);
+      console.log(this.data.length);
       //this.getWeather()
       this.updateData();
+      if (JSON.stringify(this.startingValue) != "{}") {
+        this.firstAction(this.startingValue);
+        d3.selectAll(".detailDest").remove();
+        d3.selectAll(".searchdest").remove();
+      }
     },
     //根据日期更新数据
     updateData() {
@@ -399,9 +451,57 @@ export default {
             : "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
         });
 
-      enterCircle;
-
+      enterCircle
+        .append("circle")
+        .attr("class", "dataCircle")
+        .attr("r", 5) //半径
+        .style("fill", function (d) {
+          return _this.radio === "starting" ? "red" : "green";
+        })
+        .style("fill-opacity", "0.1")
+        .attr("transform", function (d) {
+          return _this.radio === "starting"
+            ? "translate(" + projection([d.starting_lng, d.starting_lat]) + ")"
+            : "translate(" + projection([d.dest_lng, d.dest_lat]) + ")";
+        })
+        .on("click", function (d) {
+          _this.sortType = "";
+          if (_this.radio === "starting") {
+            _this.firstAction(d);
+          } else {
+            _this.secondAction(d);
+          }
+        })
+        .on("mouseover", function (d) {
+          d3.select(this).style("fill", "orange").style("fill-opacity", "0.5");
+        })
+        .on("mouseout", function (d) {
+          d3.select(this)
+            .transition()
+            .duration(250)
+            .style("fill", function (d) {
+              return _this.radio === "starting" ? "red" : "green";
+            })
+            .style("fill-opacity", "0.1");
+        });
       exitCircle.remove();
+    },
+    setWeather() {
+      let type = [];
+      let _this = this;
+      for (let a of this.searchData) {
+        let weather = _this.allWeather[a.year + "-" + a.month + "-" + a.day];
+        if (type.indexOf(weather) < 0) {
+          type.push(weather);
+        }
+      }
+      console.log(type)
+      let average = []
+      for (let i in type){
+        let args = _this.interpolateWeather(_this.searchData,type[i])
+        average.push((args.reduce((a, b) => a + parseInt(b.normal_time),0) / args.length).toFixed(1))
+      }
+      console.log(average)
     },
     lineGenerator: d3
       .line()
@@ -412,7 +512,6 @@ export default {
         return d[1];
       }),
     getDest(paths) {
-      let _this = this;
       for (let i = 0; i < paths.length; i++) {
         this.getPositionName(
           "starting",
@@ -428,8 +527,9 @@ export default {
       }
     },
     //绘制迁徙线
-    renderLine(startA, endA ,color="#fff") {
+    renderLine(startA, endA, color = "#fff") {
       //获取贝塞尔曲线控制点
+      let _this = this;
       function computeControlPoint(ps, pe, arc = 0.5) {
         const deltaX = pe[0] - ps[0];
         const deltaY = pe[1] - ps[1];
@@ -446,11 +546,13 @@ export default {
       let path = d3.path();
       path.moveTo(startA[0], startA[1]);
       path.quadraticCurveTo(middleA[0], middleA[1], endA[0], endA[1]);
-      let searchPath = this.svg
-        .append("g")
-        .attr("class", function(d){
-          return "search" + (color!="#fff" ? (" search"+color) : "")
-        })
+      let searchPath = this.svg.append("g").attr("class", function (d) {
+        return (
+          "search" +
+          _this.radio +
+          (color != "#fff" ? " search" + color.slice(1) : "")
+        );
+      });
       searchPath
         .append("path")
         .attr("d", path.toString())
@@ -458,7 +560,7 @@ export default {
         .attr("fill-opacity", "0")
         .style("stroke", color)
         .style("stroke-width", lineWidth)
-        .style('pointer-events', 'none')
+        .style("pointer-events", "none");
 
       //箭头
       searchPath
@@ -472,7 +574,7 @@ export default {
         .attr("dur", this.durationtime + "ms")
         .attr("fill", "freeze")
         .attr("rotate", "auto")
-        .style('pointer-events', 'none')
+        .style("pointer-events", "none");
     },
   },
 };
@@ -484,21 +586,21 @@ export default {
 }
 .main {
   width: 100vw;
-  height:100vh;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  overflow:hidden;
-  position:relative; 
+  overflow: hidden;
+  position: relative;
 }
-.bg{
+.bg {
   position: absolute;
   width: 2500px;
   left: -550px;
   top: -235px;
 }
 .control {
-  z-index:666;
+  z-index: 666;
   margin: 20px;
   padding: 20px;
   height: 650px;
@@ -514,7 +616,7 @@ export default {
   justify-content: space-around;
 }
 .detail-box {
-  z-index:666;
+  z-index: 666;
   margin: 20px;
   padding: 20px;
   height: 650px;
@@ -524,7 +626,6 @@ export default {
   background-color: #fff;
   color: #303133;
   border-radius: 4px;
-  overflow-y: scroll;
 }
 .box {
   width: 250px;
@@ -549,5 +650,28 @@ export default {
   font-size: 10px;
   color: gray;
   margin-left: 20px;
+}
+.scroll_box {
+  height: 290px;
+  overflow-y: scroll;
+}
+::-webkit-scrollbar {
+  /*滚动条整体样式*/
+  width: 4px; /*高宽分别对应横竖滚动条的尺寸*/
+  height: 4px;
+  scrollbar-arrow-color: red;
+}
+::-webkit-scrollbar-thumb {
+  /*滚动条里面小方块*/
+  border-radius: 5px;
+  -webkit-box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.1);
+  scrollbar-arrow-color: red;
+}
+::-webkit-scrollbar-track {
+  /*滚动条里面轨道*/
+  -webkit-box-shadow: inset 0 0 5px transparent;
+  border-radius: 0;
+  background: transparent;
 }
 </style>
