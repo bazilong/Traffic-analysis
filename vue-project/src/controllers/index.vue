@@ -157,6 +157,7 @@ export default {
         this.searchData = this.firstData;
         this.updateData();
       } else {
+        d3.selectAll(".detailDest").remove();
         this.updateData();
       }
     },
@@ -728,6 +729,7 @@ export default {
   border: 1px solid #74787c;
   background-color: rgba(36,41,46,1);
   color: #fff;
+  opacity: 0.9;
   border-radius: 4px;
 }
 .box {
