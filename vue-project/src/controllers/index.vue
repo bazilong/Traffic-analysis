@@ -68,9 +68,9 @@
         >
           <template slot="title">
             订单{{ i + 1 }}
-            <span v-if="sortType === 'distance'" class="tip">{{ 
-              detail.start_dest_distance 
-            }} m</span>
+            <span v-if="sortType === 'distance'" class="tip"
+              >{{ detail.start_dest_distance }} m</span
+            >
             <span v-if="sortType === 'time'" class="tip">{{
               detail.departure_time
             }}</span>
@@ -243,9 +243,12 @@ export default {
     },
     //天气过滤器
     interpolateWeather(nations, weather) {
-      let _this = this
+      let _this = this;
       return nations.filter(function (a) {
-        return _this.allWeather[a.year + "-" + a.month + "-" + a.day] == weather && a.normal_time != "NULL";
+        return (
+          _this.allWeather[a.year + "-" + a.month + "-" + a.day] == weather &&
+          a.normal_time != "NULL"
+        );
       });
     },
     //出发地经纬度模糊过滤器
@@ -299,7 +302,9 @@ export default {
           .append("path")
           .attr("fill", "lightgray")
           .style("fill-opacity", "0.8")
-          .attr("stroke", "#aaa") //svg边线属性定义，这里是颜色
+          .attr("stroke", "#d1c7b7") //svg边线属性定义，这里是颜色
+          .style("stroke-width", 1)
+          .style("stroke-opacity","0.8")
           .attr("d", path)
           .append("title")
           .text(function (d) {
@@ -393,6 +398,7 @@ export default {
         d.starting_lat
       );
       this.getDest(this.searchData);
+      d3.selectAll(".changeWeather").remove()
     },
     secondAction(d) {
       this.destValue = d;
@@ -495,13 +501,109 @@ export default {
           type.push(weather);
         }
       }
-      console.log(type)
-      let average = []
-      for (let i in type){
-        let args = _this.interpolateWeather(_this.searchData,type[i])
-        average.push((args.reduce((a, b) => a + parseInt(b.normal_time),0) / args.length).toFixed(1))
+      console.log(type);
+      let average = [];
+      for (let i in type) {
+        let args = _this.interpolateWeather(_this.searchData, type[i]);
+        average.push(
+          (
+            args.reduce((a, b) => a + parseInt(b.normal_time), 0) / args.length
+          ).toFixed(1)
+        );
       }
-      console.log(average)
+      console.log(average);
+      d3.selectAll(".changeWeather").remove()
+      var linear = d3
+        .scaleLinear() //返回线性比例尺
+        .domain([1, d3.max(average)])
+        .range([10, 150]);
+      let rect_svg = d3.select("#rect_svg").append("g").attr("class","changeWeather");
+      rect_svg
+        .append("line")
+        .attr("class", "x axis")
+        .attr("x1", 20)
+        .attr("y1", 200)
+        .attr("x2", 280)
+        .attr("y2", 200)
+        .attr("stroke", "white")
+        .attr("stroke-width", "1px");
+      rect_svg
+        .append("line")
+        .attr("class", "y axis")
+        .attr("x1", 20)
+        .attr("y1", 200)
+        .attr("x2", 20)
+        .attr("y2", 20)
+        .attr("stroke", "white")
+        .attr("stroke-width", "1px");
+      rect_svg
+        .append("text")
+        .attr("id", "y_label")
+        .attr("x", 25)
+        .attr("y", 20)
+        .attr("font-size", 10)
+        .style("fill","white")
+        .text("到达目的地平均时长");
+      rect_svg
+        .append("text")
+        .attr("id", "x_label")
+        .attr("x", 265)
+        .attr("y", 215)
+        .attr("font-size", 10)
+        .style("fill","white")
+        .text("天气");
+      rect_svg
+        .selectAll("rect") //选择svg内所有的矩形
+        .data(type)
+        .enter()
+        .append("rect")
+        .attr("x", function (d, i) {
+          let width = Math.min(40, 210 / type.length);
+          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i;
+        })
+        .attr("y", 200)
+        .attr("width", function (d) {
+          return Math.min(40, 210 / type.length);
+        }) //宽度按比例尺给定
+        .attr("height", function (d, i) {
+          return linear(average[i]);
+        })
+        .attr("transform", (d, i) => {
+          // 设置transform
+          let translate = linear(average[i]) + 0.5; // 这里是一个函数
+          return "translate(0,-" + translate + ")";
+        })
+        .attr("fill", "steelblue");
+      rect_svg.selectAll(".weatherType")
+        .data(type)
+        .enter()
+        .append("text")
+        .text((d) => d)
+        .attr("y", 215)
+        .attr("x", function (d, i) {
+          let width = Math.min(40, 210 / type.length);
+          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i + width/2;
+        })
+        .attr("font-size", 10)
+        .style("fill","white")
+        .style("text-anchor", "middle") 
+        .attr("fill", "black");
+      rect_svg.selectAll(".averageTime")
+        .data(type)
+        .enter()
+        .append("text")
+        .text((d,i) => average[i])
+        .attr("y", function(d,i){
+          return 200 - linear(average[i]) - 2
+        })
+        .attr("x", function (d, i) {
+          let width = Math.min(40, 210 / type.length);
+          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i + width/2;
+        })
+        .attr("font-size", 10)
+        .style("fill","white")
+        .style("text-anchor", "middle") 
+        .attr("fill", "black");
     },
     lineGenerator: d3
       .line()
@@ -595,9 +697,9 @@ export default {
 }
 .bg {
   position: absolute;
-  width: 2500px;
-  left: -550px;
-  top: -235px;
+  width: 2400px;
+  left: -460px;
+  top: -152px;
 }
 .control {
   z-index: 666;
@@ -606,9 +708,10 @@ export default {
   height: 650px;
   width: 300px;
   box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  border: 1px solid #ebeef5;
-  background-color: #fff;
-  color: #303133;
+  border: 1px solid #74787c;
+  background-color: rgba(36,41,46,1);
+  color: #fff;
+  opacity: 0.9;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
@@ -622,9 +725,9 @@ export default {
   height: 650px;
   width: 300px;
   box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  border: 1px solid #ebeef5;
-  background-color: #fff;
-  color: #303133;
+  border: 1px solid #74787c;
+  background-color: rgba(36,41,46,1);
+  color: #fff;
   border-radius: 4px;
 }
 .box {
@@ -632,7 +735,6 @@ export default {
 }
 .title {
   font-size: 14px;
-  color: #303133;
   margin: 10px 0;
 }
 .button {
@@ -652,8 +754,9 @@ export default {
   margin-left: 20px;
 }
 .scroll_box {
-  height: 290px;
+  height: 284.6px;
   overflow-y: scroll;
+  background-color: rgba(36,41,46,1);
 }
 ::-webkit-scrollbar {
   /*滚动条整体样式*/
