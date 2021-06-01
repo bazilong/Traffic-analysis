@@ -1,7 +1,7 @@
 <template>
   <div class="main">
     <img src="static/haikou.png" class="bg" />
-    <div class="control">
+    <div class="control card">
       <div class="box">
         <div class="title">日期：</div>
         <el-date-picker
@@ -47,7 +47,10 @@
       </div>
     </div>
     <svg id="my_svg" style="z-index: 666"></svg>
-    <div class="detail-box">
+    <div class="time-box">
+      <svg id="time_svg" width="600" height="150"></svg>
+    </div>
+    <div class="detail-box card">
       <div class="box">
         <div class="title">排序方式：</div>
         <el-radio-group
@@ -105,11 +108,27 @@ let projection = d3
   .center([110, 20])
   .scale(70000)
   .translate([-width * 0.22, height * 0.225]);
+let timeAXIS = [
+  "00:00",
+  "02:00",
+  "04:00",
+  "06:00",
+  "08:00",
+  "10:00",
+  "12:00",
+  "14:00",
+  "16:00",
+  "18:00",
+  "20:00",
+  "22:00",
+  "24:00",
+];
 
 export default {
   data() {
     return {
       svg: "",
+      time_svg: "",
       durationtime: 500,
       searchR: 0.001,
       value: "2017-05-01",
@@ -129,6 +148,7 @@ export default {
   },
   mounted() {
     this.svg = d3.select("#my_svg").attr("width", width).attr("height", height);
+    this.time_svg = d3.select("#time_svg").append("g");
     this.getMap();
     this.getData();
   },
@@ -242,6 +262,19 @@ export default {
         return time >= new Date(min) && time <= new Date(max);
       });
     },
+    //时间过滤器
+    interpolateTime(nations, time) {
+      return nations.filter(function (a) {
+        let t = a.departure_time.slice(11, 13);
+        if (time === 0) {
+          return t == "00";
+        } else if (time === 12) {
+          return t == "23";
+        } else {
+          return parseInt(t) == time * 2 || parseInt(t) == time * 2 - 1;
+        }
+      });
+    },
     //天气过滤器
     interpolateWeather(nations, weather) {
       let _this = this;
@@ -305,7 +338,7 @@ export default {
           .style("fill-opacity", "0.8")
           .attr("stroke", "#d1c7b7") //svg边线属性定义，这里是颜色
           .style("stroke-width", 1)
-          .style("stroke-opacity","0.8")
+          .style("stroke-opacity", "0.8")
           .attr("d", path)
           .append("title")
           .text(function (d) {
@@ -372,6 +405,7 @@ export default {
               })
               .style("fill-opacity", "0.1");
           });
+        _this.setTime();
       });
       this.getWeather();
     },
@@ -399,7 +433,7 @@ export default {
         d.starting_lat
       );
       this.getDest(this.searchData);
-      d3.selectAll(".changeWeather").remove()
+      d3.selectAll(".changeWeather").remove();
     },
     secondAction(d) {
       this.destValue = d;
@@ -493,6 +527,99 @@ export default {
         });
       exitCircle.remove();
     },
+    setTime() {
+      this.time_svg
+        .append("line")
+        .attr("class", "x axis")
+        .attr("x1", 20)
+        .attr("y1", 135)
+        .attr("x2", 580)
+        .attr("y2", 135)
+        .attr("stroke", "gray")
+        .attr("stroke-width", "1px");
+      this.time_svg
+        .append("line")
+        .attr("class", "y axis")
+        .attr("x1", 20)
+        .attr("y1", 135)
+        .attr("x2", 20)
+        .attr("y2", 5)
+        .attr("stroke", "gray")
+        .attr("stroke-width", "0.5px");
+      this.time_svg
+        .selectAll(".timeAsis")
+        .data(timeAXIS)
+        .enter()
+        .append("text")
+        .text((d) => d)
+        .attr("y", 145)
+        .attr("x", function (d, i) {
+          return (560 / 12) * i + 20;
+        })
+        .attr("font-size", 10)
+        .style("fill", "gray")
+        .style("text-anchor", "middle");
+      this.updateTime(this.data);
+    },
+    updateTime(data) {
+      let _this = this;
+      let list = [];
+      for (let i = 0; i < 13; i++) {
+        list.push(_this.interpolateTime(data, i).length);
+      }
+      console.log(list);
+      //y轴比例尺
+      let scale_y = d3
+        .scaleLinear()
+        .domain([0, d3.max(list)])
+        .range([135, 5]);
+      //面积图绘制
+      var area_generator = d3
+        .area()
+        .x(function (d, i) {
+          return (560 / 12) * i + 20;
+        })
+        .y0(135)
+        .y1(function (d) {
+          return scale_y(d);
+        })
+        .curve(d3.curveMonotoneX);
+
+      let updateTime = this.time_svg.selectAll(".timeArea").data(list);
+      let enterTime = updateTime.enter();
+      let exitTime = updateTime.exit();
+      updateTime.attr("d", area_generator(list)).style("fill", "#293047");
+      enterTime
+        .append("path")
+        .attr("d", area_generator(list))
+        .style("fill", "#293047");
+      exitTime.remove();
+
+      var line_generator = d3
+        .line()
+        .x(function (d, i) {
+          return (560 / 12) * i + 20;
+        })
+        .y(function (d) {
+          return scale_y(d);
+        })
+        .curve(d3.curveMonotoneX);
+      let updateTimeLine = this.time_svg.selectAll(".timeLine").data(list);
+      let enterTimeLine = updateTimeLine.enter();
+      let exitTimeLine = updateTimeLine.exit();
+      updateTimeLine
+        .attr("d", line_generator(list))
+        .attr("fill-opacity", "0")
+        .style("stroke", "#11264f")
+        .style("stroke-width", "2");
+      enterTimeLine
+        .append("path")
+        .attr("d", line_generator(list))
+        .attr("fill-opacity", "0")
+        .style("stroke", "#11264f")
+        .style("stroke-width", "2");
+      exitTimeLine.remove();
+    },
     setWeather() {
       let type = [];
       let _this = this;
@@ -513,12 +640,15 @@ export default {
         );
       }
       console.log(average);
-      d3.selectAll(".changeWeather").remove()
+      d3.selectAll(".changeWeather").remove();
       var linear = d3
         .scaleLinear() //返回线性比例尺
         .domain([1, d3.max(average)])
         .range([10, 150]);
-      let rect_svg = d3.select("#rect_svg").append("g").attr("class","changeWeather");
+      let rect_svg = d3
+        .select("#rect_svg")
+        .append("g")
+        .attr("class", "changeWeather");
       rect_svg
         .append("line")
         .attr("class", "x axis")
@@ -543,7 +673,7 @@ export default {
         .attr("x", 25)
         .attr("y", 20)
         .attr("font-size", 10)
-        .style("fill","white")
+        .style("fill", "white")
         .text("到达目的地平均时长");
       rect_svg
         .append("text")
@@ -551,7 +681,7 @@ export default {
         .attr("x", 265)
         .attr("y", 215)
         .attr("font-size", 10)
-        .style("fill","white")
+        .style("fill", "white")
         .text("天气");
       rect_svg
         .selectAll("rect") //选择svg内所有的矩形
@@ -560,7 +690,11 @@ export default {
         .append("rect")
         .attr("x", function (d, i) {
           let width = Math.min(40, 210 / type.length);
-          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i;
+          return (
+            30 +
+            (230 - width - (width + 10) * (type.length - 1)) / 2 +
+            (width + 10) * i
+          );
         })
         .attr("y", 200)
         .attr("width", function (d) {
@@ -575,7 +709,8 @@ export default {
           return "translate(0,-" + translate + ")";
         })
         .attr("fill", "steelblue");
-      rect_svg.selectAll(".weatherType")
+      rect_svg
+        .selectAll(".weatherType")
         .data(type)
         .enter()
         .append("text")
@@ -583,27 +718,38 @@ export default {
         .attr("y", 215)
         .attr("x", function (d, i) {
           let width = Math.min(40, 210 / type.length);
-          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i + width/2;
+          return (
+            30 +
+            (230 - width - (width + 10) * (type.length - 1)) / 2 +
+            (width + 10) * i +
+            width / 2
+          );
         })
         .attr("font-size", 10)
-        .style("fill","white")
-        .style("text-anchor", "middle") 
+        .style("fill", "white")
+        .style("text-anchor", "middle")
         .attr("fill", "black");
-      rect_svg.selectAll(".averageTime")
+      rect_svg
+        .selectAll(".averageTime")
         .data(type)
         .enter()
         .append("text")
-        .text((d,i) => average[i])
-        .attr("y", function(d,i){
-          return 200 - linear(average[i]) - 2
+        .text((d, i) => average[i])
+        .attr("y", function (d, i) {
+          return 200 - linear(average[i]) - 2;
         })
         .attr("x", function (d, i) {
           let width = Math.min(40, 210 / type.length);
-          return 30 + (230 - width - (width + 10) * (type.length-1)) / 2 + (width + 10)*i + width/2;
+          return (
+            30 +
+            (230 - width - (width + 10) * (type.length - 1)) / 2 +
+            (width + 10) * i +
+            width / 2
+          );
         })
         .attr("font-size", 10)
-        .style("fill","white")
-        .style("text-anchor", "middle") 
+        .style("fill", "white")
+        .style("text-anchor", "middle")
         .attr("fill", "black");
     },
     lineGenerator: d3
@@ -708,16 +854,34 @@ export default {
   padding: 20px;
   height: 650px;
   width: 300px;
-  box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  border: 1px solid #74787c;
-  background-color: rgba(36,41,46,1);
-  color: #fff;
-  opacity: 0.9;
-  border-radius: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-around;
+}
+.card {
+  box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+  border: 1px solid #74787c;
+  background-color: rgba(36, 41, 46, 1);
+  color: #fff;
+  opacity: 0.9;
+  border-radius: 4px;
+}
+.time-box {
+  padding: 20px;
+  z-index: 999;
+  width: 650px;
+  height: 150px;
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(36, 41, 46, 1);
+  box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
+  opacity: 0.9;
 }
 .detail-box {
   z-index: 666;
@@ -725,12 +889,6 @@ export default {
   padding: 20px;
   height: 650px;
   width: 300px;
-  box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  border: 1px solid #74787c;
-  background-color: rgba(36,41,46,1);
-  color: #fff;
-  opacity: 0.9;
-  border-radius: 4px;
 }
 .box {
   width: 250px;
@@ -758,7 +916,7 @@ export default {
 .scroll_box {
   height: 284.6px;
   overflow-y: scroll;
-  background-color: rgba(36,41,46,1);
+  background-color: rgba(36, 41, 46, 1);
 }
 ::-webkit-scrollbar {
   /*滚动条整体样式*/
