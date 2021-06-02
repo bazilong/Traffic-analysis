@@ -48,6 +48,7 @@
     </div>
     <svg id="my_svg" style="z-index: 666"></svg>
     <div class="time-box">
+      <div class="time-title">各时间段订单数</div>
       <svg id="time_svg" width="600" height="150"></svg>
     </div>
     <div class="detail-box card">
@@ -174,8 +175,10 @@ export default {
       if (this.radio === "starting") {
         d3.selectAll(".searchdest").remove();
         d3.selectAll(".detailDest").remove();
+        d3.selectAll(".changeWeather").remove();
         this.searchData = this.firstData;
         this.updateData();
+        this.updateTime(this.searchData);
       } else {
         d3.selectAll(".detailDest").remove();
         this.updateData();
@@ -201,7 +204,6 @@ export default {
     //   });
     // },
     confirmDetail(e) {
-      console.log(e);
       d3.selectAll(".detailDest").remove();
       d3.selectAll(".search694d9f").remove();
       this.svg
@@ -350,7 +352,6 @@ export default {
       let _this = this;
       d3.json("static/wendu.json").then(function (res) {
         _this.allWeather = res.weather;
-        console.log(res);
       });
     },
     //获取全部订单数据，并首次渲染位点
@@ -433,6 +434,7 @@ export default {
         d.starting_lat
       );
       this.getDest(this.searchData);
+      this.updateTime(this.searchData);
       d3.selectAll(".changeWeather").remove();
     },
     secondAction(d) {
@@ -458,6 +460,7 @@ export default {
         d.dest_lng,
         d.dest_lat
       );
+      this.updateTime(this.searchData);
       this.setWeather();
     },
     updateByDate() {
@@ -465,9 +468,8 @@ export default {
         this.value2 = this.value;
       }
       this.data = this.interpolateData(this.allData, this.value, this.value2);
-      console.log(this.data.length);
-      //this.getWeather()
       this.updateData();
+      this.updateTime(this.data);
       if (JSON.stringify(this.startingValue) != "{}") {
         this.firstAction(this.startingValue);
         d3.selectAll(".detailDest").remove();
@@ -537,12 +539,32 @@ export default {
         .attr("y2", 135)
         .attr("stroke", "gray")
         .attr("stroke-width", "1px");
+      for (let i = 0 ; i <4 ; i++){
+        this.time_svg
+        .append("line")
+        .attr("class", "x axis")
+        .attr("x1", 20)
+        .attr("y1", 5 + 32.5*i)
+        .attr("x2", 580)
+        .attr("y2", 5 + 32.5*i)
+        .attr("stroke", "gray")
+        .attr("stroke-width", "0.5px");
+      }
       this.time_svg
         .append("line")
         .attr("class", "y axis")
         .attr("x1", 20)
         .attr("y1", 135)
         .attr("x2", 20)
+        .attr("y2", 5)
+        .attr("stroke", "gray")
+        .attr("stroke-width", "0.5px");
+      this.time_svg
+        .append("line")
+        .attr("class", "y axis")
+        .attr("x1", 580)
+        .attr("y1", 135)
+        .attr("x2", 580)
         .attr("y2", 5)
         .attr("stroke", "gray")
         .attr("stroke-width", "0.5px");
@@ -563,15 +585,40 @@ export default {
     },
     updateTime(data) {
       let _this = this;
+      d3.selectAll(".timeText").remove()
+      d3.selectAll(".timeLine").remove()
+      d3.selectAll(".timeArea").remove()
       let list = [];
       for (let i = 0; i < 13; i++) {
         list.push(_this.interpolateTime(data, i).length);
       }
-      console.log(list);
+      let max = d3.max(list)
+      while (max % 10 != 0){
+        max++
+      }
+      //text
+      this.time_svg
+        .append("text")
+        .attr("class", "timeText")
+        .text(max)
+        .attr("y", 10)
+        .attr("x", 18)
+        .attr("font-size", 10)
+        .style("fill", "gray")
+        .style("text-anchor", "end");
+      this.time_svg
+        .append("text")
+        .attr("class", "timeText")
+        .text(max/2)
+        .attr("y", 75)
+        .attr("x", 18)
+        .attr("font-size", 10)
+        .style("fill", "gray")
+        .style("text-anchor", "end");
       //y轴比例尺
       let scale_y = d3
         .scaleLinear()
-        .domain([0, d3.max(list)])
+        .domain([0, max])
         .range([135, 5]);
       //面积图绘制
       var area_generator = d3
@@ -584,16 +631,15 @@ export default {
           return scale_y(d);
         })
         .curve(d3.curveMonotoneX);
-
-      let updateTime = this.time_svg.selectAll(".timeArea").data(list);
-      let enterTime = updateTime.enter();
-      let exitTime = updateTime.exit();
-      updateTime.attr("d", area_generator(list)).style("fill", "#293047");
-      enterTime
+      this.time_svg
+        .selectAll(".timeArea")
+        .data(list)
+        .enter()
         .append("path")
+        .attr("class","timeArea")
         .attr("d", area_generator(list))
-        .style("fill", "#293047");
-      exitTime.remove();
+        .style("fill", "#293047")
+        .attr("fill-opacity", "0.9")
 
       var line_generator = d3
         .line()
@@ -604,21 +650,16 @@ export default {
           return scale_y(d);
         })
         .curve(d3.curveMonotoneX);
-      let updateTimeLine = this.time_svg.selectAll(".timeLine").data(list);
-      let enterTimeLine = updateTimeLine.enter();
-      let exitTimeLine = updateTimeLine.exit();
-      updateTimeLine
-        .attr("d", line_generator(list))
-        .attr("fill-opacity", "0")
-        .style("stroke", "#11264f")
-        .style("stroke-width", "2");
-      enterTimeLine
+      this.time_svg
+        .selectAll(".timeLine")
+        .data(list)
+        .enter()
         .append("path")
+        .attr("class","timeLine")
         .attr("d", line_generator(list))
         .attr("fill-opacity", "0")
-        .style("stroke", "#11264f")
-        .style("stroke-width", "2");
-      exitTimeLine.remove();
+        .style("stroke", "#4e72b8")
+        .style("stroke-width", "1");
     },
     setWeather() {
       let type = [];
@@ -629,7 +670,6 @@ export default {
           type.push(weather);
         }
       }
-      console.log(type);
       let average = [];
       for (let i in type) {
         let args = _this.interpolateWeather(_this.searchData, type[i]);
@@ -639,7 +679,6 @@ export default {
           ).toFixed(1)
         );
       }
-      console.log(average);
       d3.selectAll(".changeWeather").remove();
       var linear = d3
         .scaleLinear() //返回线性比例尺
@@ -861,14 +900,13 @@ export default {
 }
 .card {
   box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  border: 1px solid #74787c;
+  /* border: 1px solid #74787c; */
   background-color: rgba(36, 41, 46, 1);
   color: #fff;
-  opacity: 0.9;
   border-radius: 4px;
 }
 .time-box {
-  padding: 20px;
+  padding:30px 20px 10px;
   z-index: 999;
   width: 650px;
   height: 150px;
@@ -881,7 +919,14 @@ export default {
   justify-content: center;
   background-color: rgba(36, 41, 46, 1);
   box-shadow: 0 2px 12px 0 rgb(0 0 0 / 10%);
-  opacity: 0.9;
+}
+.time-title{
+  position:absolute;
+  left:50%;
+  top:10px;
+  transform: translateX(-50%);
+  color:white;
+  font-size: 10px;
 }
 .detail-box {
   z-index: 666;
